@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Flood Statistics Dashboard</title>
+    <!-- Simple styling for cards and layout -->
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f4f7f6;
+            margin: 0;
+            padding: 20px;
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .dashboard-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(450px, 1fr));
+            gap: 20px;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        .card {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        .card h3 {
+            margin-top: 0;
+            color: #333;
+            border-bottom: 2px solid #eee;
+            padding-bottom: 10px;
+        }
+        canvas {
+            width: 100% !important;
+            height: 300px !important;
+        }
+        @media (max-width: 500px) {
+            .dashboard-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+    <!-- Include Papa Parse for CSV reading and Chart.js for charts -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+
+    <div class="header">
+        <h1>FloodArchive Data Dashboard</h1>
+        <p>Visualizing global flood events from 1985 onwards</p>
+    </div>
+
+    <div class="dashboard-grid">
+        <!-- Card 1: Top 20 Countries -->
+        <div class="card">
+            <h3>Top 20 Countries by Flood Events</h3>
+            <canvas id="chartCountry"></canvas>
+        </div>
+
+        <!-- Card 2: Events per Year -->
+        <div class="card">
+            <h3>Flood Events per Year</h3>
+            <canvas id="chartYear"></canvas>
+        </div>
+
+        <!-- Card 3: Events by Category -->
+        <div class="card">
+            <h3>Events by Category</h3>
+            <canvas id="chartCategory"></canvas>
+        </div>
+
+        <!-- Card 4: Displaced by Severity -->
+        <div class="card">
+            <h3>Total Displaced by Severity</h3>
+            <canvas id="chartSeverity"></canvas>
+        </div>
+    </div>
+
+    <script>
+        // Function to process and render the charts
+        async function initDashboard() {
+            // 1. Fetch the CSV file
+            Papa.parse("floodarchive_cleaned.csv", {
+                download: true,
+                header: true,
+                dynamicTyping: true,
+                complete: function(results) {
+                    const data = results.data;
+                    processData(data);
+                }
+            });
+        }
+
+        function processData(data) {
+            // Filters out any empty rows
+            const cleanData = data.filter(d => d.Country && d.Year);
+
+            // --- 1. Top 20 Countries ---
+            const countryCounts = {};
+            cleanData.forEach(d => {
+                countryCounts[d.Country] = (countryCounts[d.Country] || 0) + 1;
+            });
+            const topCountries = Object.entries(countryCounts)
+                .sort((a, b) => b[1] - a[1])
+                .slice(0, 20);
+
+            renderBarChart('chartCountry', 
+                topCountries.map(d => d[0]), 
+                topCountries.map(d => d[1]), 
+                'Number of Events', '#3498db');
+
+            // --- 2. Events per Year ---
+            const yearCounts = {};
+            cleanData.forEach(d => {
+                yearCounts[d.Year] = (yearCounts[d.Year] || 0) + 1;
+            });
+            const sortedYears = Object.entries(yearCounts).sort((a, b) => a[0] - b[0]);
+
+            renderLineChart('chartYear', 
+                sortedYears.map(d => d[0]), 
+                sortedYears.map(d => d[1]), 
+                'Events per Year', '#e67e22');
+
+            // --- 3. Events by Category ---
+            const categoryCounts = {};
+            cleanData.forEach(d => {
+                if(d.categorised_reason) {
+                    categoryCounts[d.categorised_reason] = (categoryCounts[d.categorised_reason] || 0) + 1;
+                }
+            });
+            const categories = Object.entries(categoryCounts).sort((a, b) => b[1] - a[1]);
+
+            renderBarChart('chartCategory', 
+                categories.map(d => d[0]), 
+                categories.map(d => d[1]), 
+                'Number of Events', '#2ecc71');
+
+            // --- 4. Displaced by Severity ---
+            const severityDisplaced = {};
+            cleanData.forEach(d => {
+                if(d.Severity != null) {
+                    severityDisplaced[d.Severity] = (severityDisplaced[d.Severity] || 0) + (d.Displaced || 0);
+                }
+            });
+            const sortedSeverity = Object.entries(severityDisplaced).sort((a, b) => a[0] - b[0]);
+
+            renderBarChart('chartSeverity', 
+                sortedSeverity.map(d => "Severity " + d[0]), 
+                sortedSeverity.map(d => d[1]), 
+                'Total Displaced', '#9b59b6');
+        }
+
+        function renderBarChart(canvasId, labels, data, label, color) {
+            new Chart(document.getElementById(canvasId), {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: label,
+                        data: data,
+                        backgroundColor: color
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: { beginAtZero: true }
+                    }
+                }
+            });
+        }
+
+        function renderLineChart(canvasId, labels, data, label, color) {
+            new Chart(document.getElementById(canvasId), {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: label,
+                        data: data,
+                        borderColor: color,
+                        tension: 0.1,
+                        fill: false
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: { beginAtZero: true }
+                    }
+                }
+            });
+        }
+
+        // Start the process
+        initDashboard();
+    </script>
+</body>
+</html>
