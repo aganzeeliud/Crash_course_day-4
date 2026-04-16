@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Global Flood Events Map</title>
+    <!-- Leaflet CSS for the map -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <style>
+        body { margin: 0; padding: 0; font-family: sans-serif; }
+        #map { height: 100vh; width: 100%; }
+        .nav-button {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            z-index: 1000;
+            background: white;
+            padding: 10px 15px;
+            border-radius: 5px;
+            text-decoration: none;
+            color: #333;
+            font-weight: bold;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+        }
+        .nav-button:hover { background: #f0f0f0; }
+    </style>
+</head>
+<body>
+
+    <!-- Link to your other page -->
+    <a href="dashboard.html" class="nav-button">View Statistics Dashboard →</a>
+
+    <div id="map"></div>
+
+    <!-- Leaflet JS and Papa Parse -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
+
+    <script>
+        // 1. Initialize the map centered on the world
+        const map = L.map('map').setView([20, 0], 2);
+
+        // 2. Add a nice map style (OpenStreetMap)
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '© OpenStreetMap contributors'
+        }).addTo(map);
+
+        // 3. Load and parse your CSV data
+        Papa.parse("floodarchive_cleaned.csv", {
+            download: true,
+            header: true,
+            dynamicTyping: true,
+            complete: function(results) {
+                const data = results.data;
+                
+                // 4. Loop through the data and add markers
+                data.forEach(row => {
+                    if (row.lat && row.long) {
+                        const marker = L.circleMarker([row.lat, row.long], {
+                            radius: 5,
+                            fillColor: "#3498db",
+                            color: "#fff",
+                            weight: 1,
+                            opacity: 1,
+                            fillOpacity: 0.8
+                        }).addTo(map);
+
+                        // Add a popup with info about the flood
+                        marker.bindPopup(`
+                            <strong>${row.Country} (${row.Year})</strong><br>
+                            Type: ${row.categorised_reason || 'Unknown'}<br>
+                            Severity: ${row.Severity || 'N/A'}<br>
+                            Dead: ${row.Dead || 0}
+                        `);
+                    }
+                });
+            }
+        });
+    </script>
+</body>
+</html>
